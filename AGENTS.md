@@ -2,6 +2,7 @@
 
 - Consult the owner’s private plan and progress ledger in the parent directory. Do not copy them into this public repository.
 - Implement only the next authorised phase. A starter prompt or successful tests do not approve a phase.
+- Each owner “Green next” accepts the delivered phase and starts the next phase in this same conversation. Do not require a fresh conversation; the owner explicitly replaced that earlier rule.
 - Keep personal records exclusively in local browser storage. No telemetry, external fonts, uploads, sample observations or personal test fixtures.
 - Preserve the fixed six-ingredient equal-weight score contract when that feature is introduced. Missing inputs never become zero or change the recipe.
 - Preserve the charcoal background, warm orange accent, designed cards and phone-first accessibility. No empty placeholder routes.

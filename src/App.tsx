@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ArrowUpRight, Check, Compass, Download, House, Info, Moon, RefreshCw, Settings2, ShieldCheck, Smartphone, Sun, Sunrise, Trash2, WifiOff } from 'lucide-react'
-import { DIRECTION_LIMIT, downloadFile, exportCsv, exportJson, readDirection, removeDirection, saveDirection, type DirectionRecord } from './data'
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, Compass, Download, House, Info, RefreshCw, Settings2, ShieldCheck, Smartphone, Trash2, WifiOff } from 'lucide-react'
+import { DIRECTION_LIMIT, downloadFile, exportCsv, exportJson, readDirection, readExport, removeDirection, saveDirection, type DirectionRecord } from './data'
+import { Journal } from './Journal'
+import './checkin.css'
 import { Dialog } from './Dialog'
 import { usePwa } from './usePwa'
-
-const bands = [
-  ['0–19', 'Low reserve'], ['20–39', 'Stretched'], ['40–59', 'Mixed'],
-  ['60–79', 'Steady'], ['80–100', 'Plenty in reserve'],
-]
-const windows = [
-  { name: 'Morning', time: '7:00 AM', Icon: Sunrise },
-  { name: 'Afternoon', time: '2:00 PM', Icon: Sun },
-  { name: 'Evening', time: '9:00 PM', Icon: Moon },
-]
 
 function routeFromHash() { return window.location.hash.startsWith('#/settings') ? 'settings' : 'home' }
 
@@ -22,6 +14,9 @@ export function App() {
   const [draft, setDraft] = useState('')
   const [dirty, updateDirty] = useState(false)
   const dirtyRef = useRef(false)
+  const checkinRef = useRef(false)
+  const [checkinDraft, setCheckinDraft] = useState(false)
+  const onCheckinDraft = useCallback((value: boolean) => { checkinRef.current = value; setCheckinDraft(value) }, [])
   const setDirty = useCallback((value: boolean) => { dirtyRef.current = value; updateDirty(value) }, [])
   const [loading, setLoading] = useState(true)
   const [storageError, setStorageError] = useState(false)
@@ -53,12 +48,12 @@ export function App() {
   }, [])
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
-    document.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true })
+    document.querySelector<HTMLElement>(route === 'settings' ? '.settings-heading h1' : '.journal h1')?.focus({ preventScroll: true })
     document.title = route === 'settings' ? 'Settings · My Life in Motion' : 'My Life in Motion'
   }, [route])
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (dirtyRef.current) { event.preventDefault(); event.returnValue = '' }
+      if (dirtyRef.current || checkinRef.current) { event.preventDefault(); event.returnValue = '' }
     }
     window.addEventListener('beforeunload', beforeUnload)
     return () => window.removeEventListener('beforeunload', beforeUnload)
@@ -93,15 +88,15 @@ export function App() {
   async function exportRecord(extension: 'json' | 'csv') {
     setFeedback(''); setFormError('')
     try {
-      const record = await readDirection()
-      downloadFile(extension === 'json' ? exportJson(record) : exportCsv(record), extension)
+      const saved = await readExport()
+      downloadFile(extension === 'json' ? exportJson(saved.direction, saved.checkins) : exportCsv(saved.direction, saved.checkins), extension)
       setFeedback(`${extension.toUpperCase()} download prepared from your saved record.`)
     } catch { setFormError('This browser couldn’t read your saved record for export. Please try again.') }
   }
 
   const savedDate = direction ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(direction.updatedAt)) : ''
 
-  return <div className="app">
+  return <div className={`app ${checkinDraft && route === 'home' ? 'answering' : ''}`}>
     <a className="skip-link" href="#main">Skip to content</a>
     <header className="app-header">
       <a href="#/" className="brand" aria-label="My Life in Motion home">
@@ -113,20 +108,9 @@ export function App() {
 
     <main id="main" className="main">
       {storageError && <div className="notice" role="alert"><p>This browser couldn’t open your local record. No saved data has been replaced.</p><button className="text-button" onClick={() => void load()}>Try again <RefreshCw size={15} /></button></div>}
-      {pwa.updateReady && <div className="notice update-notice"><p>{dirty ? 'An update is ready. Save your direction first.' : 'A new version is ready. Your record stays here.'}</p><button className="text-button" disabled={dirty} onClick={() => void pwa.update()}>Update app <RefreshCw size={15} /></button></div>}
+      {pwa.updateReady && <div className="notice update-notice"><p>{dirty || checkinDraft ? 'An update is ready. Finish your unsaved changes first.' : 'A new version is ready. Your record stays here.'}</p><button className="text-button" disabled={dirty || checkinDraft} onClick={() => void pwa.update()}>Update app <RefreshCw size={15} /></button></div>}
 
-      {route === 'home' ? <>
-        <div className="page-heading"><div><p className="eyebrow date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date())}</p><h1 tabIndex={-1}>Here, today<span className="accent">.</span></h1><p className="page-intro">A place to notice. A direction to keep.</p></div><span className="heading-mark" aria-hidden="true"><Compass size={25} strokeWidth={1.25} /></span></div>
-
-        <div className="home-grid">
-          <section className="card reading-card" aria-labelledby="reading-title">
-            <div className="card-top"><h2 id="reading-title" className="eyebrow">Your current reading</h2><button className="icon-button muted" aria-label="About the reading" onClick={() => setDialog('recipe')}><Info size={18} /></button></div>
-            <div className="empty-reading"><span className="reading-number" aria-label="No reading yet">—</span><p className="reading-state">Not logged yet</p><p className="reading-explanation">Your first check-in will put a marker on the scale.</p></div>
-            <div className="reading-scale" aria-hidden="true"><span /><span /><span /><span /><span /></div>
-            <ol className="band-legend" aria-label="Reading scale bands">{bands.map(([range, label]) => <li key={range}><span className="band-range">{range}</span><span>{label}</span></li>)}</ol>
-            <p className="card-footnote">A reading, never a verdict.</p>
-          </section>
-
+      <div hidden={route !== 'home'}><Journal active={route === 'home'} disabled={loading || storageError} onDraft={onCheckinDraft} onRecipe={() => setDialog('recipe')}>
           <section className="card direction-card" aria-labelledby="direction-title" aria-busy={loading}>
             <div className="card-top"><h2 id="direction-title" className="eyebrow">Your direction</h2><Compass className="accent" size={20} strokeWidth={1.5} /></div>
             {loading ? <div className="direction-content"><p className="direction-title">Opening your local record…</p></div> : storageError ? <div className="direction-content"><p className="direction-title">Your record stays yours.</p><p className="body-secondary">Try opening your local record again to see your direction.</p></div> : <div className="direction-content">
@@ -136,15 +120,8 @@ export function App() {
             </div>}
             <div className="direction-caption"><span className="small-rule" /><span>No deadline. Yours to change.</span></div>
           </section>
-
-          <section className="card rhythm-card" aria-labelledby="rhythm-title">
-            <div className="card-top"><h2 id="rhythm-title" className="eyebrow">A little rhythm</h2><span className="quiet-label">Coming next</span></div>
-            <div className="checkin-windows">{windows.map(({ name, time, Icon }) => <div className="window" key={name}><Icon size={23} strokeWidth={1.4} /><h3>{name}</h3><span>{time}</span></div>)}</div>
-            <p className="rhythm-note">A few words about how you are, three times a day. Check-ins aren’t open yet; no reminders are set.</p>
-          </section>
-        </div>
-        <p className="home-footnote"><span aria-hidden="true" />One small place to begin.</p>
-      </> : <>
+      </Journal></div>
+      {route === 'settings' && <>
         <div className="page-heading settings-heading"><div><a className="back-link" href="#/"><ArrowLeft size={15} /> Today</a><h1 tabIndex={-1}>Make it yours<span className="accent">.</span></h1><p className="page-intro">A direction to keep. A record you control.</p></div></div>
         <div className="settings-grid">
           <section className="card settings-direction" aria-labelledby="settings-direction-title">
@@ -161,7 +138,7 @@ export function App() {
           </section>
 
           <div className="settings-side">
-            <section className="card privacy-card" aria-labelledby="privacy-title"><div className="utility-icon"><ShieldCheck size={23} strokeWidth={1.5} /></div><h2 id="privacy-title" className="section-title">Your record stays here.</h2><p className="body-secondary">Your direction lives in this browser, on this device. No account, uploads or tracking.</p><p className="storage-note">{persistent ? 'Browser persistence is enabled. Clearing site data still removes your record.' : 'Clearing browser storage removes your record. Keep a download if you want a copy.'}</p><div className="export-actions"><button className="secondary-button" disabled={loading || storageError} onClick={() => void exportRecord('json')}><Download size={16} /> JSON backup</button><button className="secondary-button" disabled={loading || storageError} onClick={() => void exportRecord('csv')}><Download size={16} /> CSV export</button></div><p className="small-copy">Exports contain your saved direction and its dates. Unsaved changes stay out.</p></section>
+            <section className="card privacy-card" aria-labelledby="privacy-title"><div className="utility-icon"><ShieldCheck size={23} strokeWidth={1.5} /></div><h2 id="privacy-title" className="section-title">Your record stays here.</h2><p className="body-secondary">Your direction and check-ins live in this browser, on this device. No account, uploads or tracking.</p><p className="storage-note">{persistent ? 'Browser persistence is enabled. Clearing site data still removes your record.' : 'Clearing browser storage removes your record. Keep a download if you want a copy.'}</p><div className="export-actions"><button className="secondary-button" disabled={loading || storageError} onClick={() => void exportRecord('json')}><Download size={16} /> JSON backup</button><button className="secondary-button" disabled={loading || storageError} onClick={() => void exportRecord('csv')}><Download size={16} /> CSV export</button></div><p className="small-copy">Exports contain your saved direction, check-in phrases, dates and answering time. Calculations are labelled. Unsaved changes stay out.</p></section>
 
             <section className="card install-card" aria-labelledby="install-title"><div className="install-icon"><Smartphone size={24} strokeWidth={1.5} /></div><div><h2 id="install-title" className="section-title">Keep it close.</h2><p className="body-secondary">{pwa.installed ? 'You’re using the installed app.' : 'Add My Life to your home screen for a space of its own.'}</p><p className="offline-status"><span className={pwa.offlineReady ? 'ready-dot' : 'pending-dot'} />{pwa.offlineReady ? 'Ready to open offline' : 'Preparing offline access'}</p>{!pwa.installed && <button className="text-button" onClick={() => { if (pwa.canInstall) void pwa.install().catch(() => setInstallHelp(true)); else setInstallHelp(value => !value) }}>{pwa.canInstall ? 'Install app' : installHelp ? 'Hide install steps' : 'Show install steps'}<ArrowUpRight size={16} /></button>}{installHelp && !pwa.installed && <p className="install-help">In Chrome on Android, open the browser menu, choose <strong>Add to Home screen</strong>, then <strong>Install</strong>. Reopening the app in the same browser keeps the same record.</p>}</div></section>
           </div>
@@ -173,7 +150,7 @@ export function App() {
     <nav className="bottom-nav" aria-label="Main navigation"><a href="#/" aria-current={route === 'home' ? 'page' : undefined}><House size={20} strokeWidth={1.7} /><span>Today</span></a><a href="#/settings" aria-current={route === 'settings' ? 'page' : undefined}><Settings2 size={20} strokeWidth={1.7} /><span>Settings</span></a></nav>
 
     <Dialog open={dialog !== null} title={dialog === 'remove' ? 'Remove your direction?' : 'A reading, never a verdict.'} onClose={() => setDialog(null)}>
-      {dialog === 'remove' ? <><p className="body-secondary">This removes your saved line from this device. You can write another whenever you like.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Keep it</button><button className="primary-button" disabled={busy} onClick={() => void remove()}>Remove direction</button></div></> : <><p className="body-secondary">The reading will be a calculation from six things you describe: mood, energy, focus, stress, overwhelm and irritation. Each gets an equal share, permanently.</p><p className="body-secondary">The scale’s words describe a moment. They aren’t an assessment of you. Until you record a complete check-in, there’s no number or marker here.</p><div className="recipe-note"><Info size={18} /><span>Check-ins are coming next.</span></div></>}
+      {dialog === 'remove' ? <><p className="body-secondary">This removes your saved line from this device. You can write another whenever you like.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Keep it</button><button className="primary-button" disabled={busy} onClick={() => void remove()}>Remove direction</button></div></> : <><p className="body-secondary">The reading is a calculation from six things you describe: mood, energy, focus, stress, overwhelm and irritation. Each gets an equal share, permanently.</p><p className="body-secondary">The scale’s words describe a moment. They aren’t an assessment of you. All six ingredients are required. Otherwise you see Incomplete, or your last complete reading with its time. No missing answer becomes zero. This is not a validated assessment.</p><div className="recipe-note"><Info size={18} /><span>Five anchors map to 0, 25, 50, 75 and 100. Stress, overwhelm and irritation run in reverse. Average all six; round only the displayed result. Context never changes the score.</span></div></>}
     </Dialog>
   </div>
 }

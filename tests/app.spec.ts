@@ -15,12 +15,12 @@ test('empty home has a labelled scale, no invented reading and only built naviga
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('./')
   await expect(page.getByRole('heading', { name: 'Here, today.' })).toBeVisible()
-  await expect(page.getByText('Not logged yet', { exact: true })).toBeVisible()
+  await expect(page.locator('.reading-state')).toHaveText('Not logged yet')
   await expect(page.getByLabel('No reading yet')).toHaveText('—')
   await expect(page.getByLabel('Reading scale bands').getByRole('listitem')).toHaveCount(5)
   await expect(page.getByRole('navigation').getByRole('link')).toHaveCount(2)
   await expect(page.getByRole('link', { name: 'Set my direction' })).toBeVisible()
-  await expect(page.getByText('Check-ins aren’t open yet; no reminders are set.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check in now', exact: true })).toBeEnabled()
   await page.screenshot({ path: testInfo.outputPath('home-empty.png'), fullPage: true })
   expect(errors).toEqual([])
 })
@@ -80,7 +80,7 @@ test('installed assets and saved direction reopen offline', async ({ page, conte
   await page.reload()
   await expect(page.getByLabel('My direction', { exact: true })).toHaveValue('A synthetic direction saved while offline.')
   await page.getByRole('navigation').getByRole('link', { name: 'Today', exact: true }).click()
-  await expect(page.getByText('Not logged yet', { exact: true })).toBeVisible()
+  await expect(page.locator('.reading-state')).toHaveText('Not logged yet')
 })
 
 test('the install manifest has a scoped start URL and real Android icons', async ({ request }) => {

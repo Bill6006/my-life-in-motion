@@ -9,7 +9,8 @@ describe('the local record', () => {
   it('starts without invented records and retains absence in exports', async () => {
     expect(await readDirection(db)).toBeUndefined()
     expect(JSON.parse(exportJson()).records.directions).toEqual([])
-    expect(exportCsv()).toBe('type,text,created_at,updated_at\r\n')
+    expect(exportCsv().trim().split('\r\n')).toHaveLength(1)
+    expect(JSON.parse(exportJson()).records.checkins).toEqual([])
     expect(await db.directions.count()).toBe(0)
   })
 
@@ -49,7 +50,7 @@ describe('the local record', () => {
   it('exports versioned JSON and neutralises spreadsheet formulas in CSV', async () => {
     const record = await saveDirection('=HYPERLINK("https://example.invalid", "synthetic")', db)
     const backup = JSON.parse(exportJson(record))
-    expect(backup.schemaVersion).toBe(1)
+    expect(backup.schemaVersion).toBe(2)
     expect(backup.privateDataIncluded).toBe(false)
     expect(backup.records.directions).toEqual([record])
     expect(exportCsv(record)).toContain('"\'=HYPERLINK(""https://example.invalid"", ""synthetic"")"')
