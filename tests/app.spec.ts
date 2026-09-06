@@ -33,7 +33,7 @@ test('direction survives reload, can be corrected, and deletion is real', async 
   await expect(page.getByLabel('My direction', { exact: true })).toHaveValue(syntheticDirection)
   await save(page, 'A revised synthetic direction, in my own words.')
   await page.getByRole('navigation').getByRole('link', { name: 'Today', exact: true }).click()
-  await expect(page.getByText('A revised synthetic direction, in my own words.', { exact: true })).toBeVisible()
+  await expect(page.locator('.direction-title').filter({ hasText: 'A revised synthetic direction, in my own words.' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('home-synthetic-direction.png'), fullPage: true })
   await settings(page)
   await page.getByRole('button', { name: 'Remove my direction', exact: true }).click()
